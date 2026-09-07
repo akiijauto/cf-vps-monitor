@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cf-vps-monitor",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-22",
+  "observability": { "enabled": true },
+
+  // 5分ごとにscheduled()を実行し、targetsテーブルの対象へ外形監視をかける。
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
+
+  // wrangler d1 create cf-vps-monitor で発行されたIDに差し替える。
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cf-vps-monitor",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+    }
+  ],
+
+  // wrangler kv namespace create STATUS_KV で発行されたIDに差し替える。
+  // 最新ステータスのスナップショット（ダッシュボード表示用のキャッシュ）を持つ。D1が正本、KVは高速表示用。
+  "kv_namespaces": [
+    {
+      "binding": "STATUS_KV",
+      "id": "REPLACE_WITH_KV_NAMESPACE_ID"
+    }
+  ]
+
+  // DISCORD_WEBHOOK_URL はシークレットとして別途設定する（ここには書かない）:
+  //   wrangler secret put DISCORD_WEBHOOK_URL
+}

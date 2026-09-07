@@ -1,0 +1,25 @@
+{
+  "name": "cf-vps-monitor",
+  "version": "1.0.0",
+  "description": "AI開発配下のVPSアプリ群を定期監視し、落ちたらDiscordへ通知する稼働監視ダッシュボード（Cloudflare Workers + D1 + KV + Cron Triggers）",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy -c wrangler.local.jsonc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "cf-typegen": "wrangler types",
+    "db:init": "wrangler d1 execute cf-vps-monitor --file=schema.sql",
+    "db:init:remote": "wrangler d1 execute cf-vps-monitor -c wrangler.local.jsonc --remote --file=schema.sql",
+    "db:seed": "wrangler d1 execute cf-vps-monitor --file=seed.sql",
+    "db:seed:remote": "wrangler d1 execute cf-vps-monitor -c wrangler.local.jsonc --remote --file=seed.sql"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.0",
+    "wrangler": "^4.129.0"
+  }
+}
