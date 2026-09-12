@@ -99,11 +99,29 @@ async function runChecks(env: Env): Promise<void> {
   const now = new Date().toISOString();
   const latestList: LatestStatus[] = [];
 
+  // 前回の判定は status:all からまとめて読む。対象ごとに status:<id> を持つと
+  // KV書き込みが「対象数+1」回/実行になり、無料枠（書き込み1,000回/日）を使い切る。
+  // 2026-09-12、対象3件・5分間隔で1日1,152回に達し上限90%の警告が届いた。
+  const previousRaw = await env.STATUS_KV.get('status:all');
+  const previousOkById = new Map<number, boolean>();
+  if (previousRaw) {
+    try {
+      for (const prev of JSON.parse(previousRaw) as LatestStatus[]) {
+        previousOkById.set(prev.target_id, prev.ok);
+      }
+    } catch (e) {
+      // 壊れたJSON1件で全対象の監視を止めない。前回値なし（＝初回扱い）で続行する。
+      console.error(
+        'status:all を読めませんでした。前回値なしとして続行します:',
+        e instanceof Error ? e.message : String(e)
+      );
+    }
+  }
+
   for (const target of results) {
     const result = await checkTarget(target);
 
-    const previousRaw = await env.STATUS_KV.get(`status:${target.id}`);
-    const previousOk = previousRaw ? (JSON.parse(previousRaw) as LatestStatus).ok : null;
+    const previousOk = previousOkById.has(target.id) ? previousOkById.get(target.id)! : null;
 
     await env.DB.prepare(
       'INSERT INTO checks (target_id, ok, status_code, latency_ms, error) VALUES (?, ?, ?, ?, ?)'
@@ -122,11 +140,11 @@ async function runChecks(env: Env): Promise<void> {
       checked_at: now,
     };
     latestList.push(latest);
-    await env.STATUS_KV.put(`status:${target.id}`, JSON.stringify(latest));
 
     await notifyIfChanged(env, result, previousOk);
   }
 
+  // KVへの書き込みはここ1回だけ。対象を増やしても書き込み回数は増えない。
   await env.STATUS_KV.put('status:all', JSON.stringify(latestList));
 
   // 履歴の間引き。checksテーブルが際限なく増えるのを防ぐ。
@@ -159,7 +177,7 @@ h1 { font-size: 1.2rem; }
 </head>
 <body>
 <h1>VPS稼働監視ダッシュボード</h1>
-<p>5分ごとにCronで外形監視。異常への遷移・復旧のみDiscordへ通知。</p>
+<p>20分ごとにCronで外形監視。異常への遷移・復旧のみDiscordへ通知。</p>
 <table>
 <thead><tr><th>状態</th><th>名前</th><th>URL</th><th>詳細</th><th>最終確認</th></tr></thead>
 <tbody>
