@@ -1,6 +1,6 @@
 # cf-vps-monitor
 
-AI開発配下・automation-labのVPSアプリ群を5分ごとに外形監視し、状態が変わったとき（正常→異常／異常→正常）だけDiscordへ通知するダッシュボード。
+AI開発配下・automation-labのVPSアプリ群を20分ごとに外形監視し、状態が変わったとき（正常→異常／異常→正常）だけDiscordへ通知するダッシュボード。
 
 **目的はFindyのスキル偏差値対策ではなく、受託開発で使えるモダン技術スタック（Cloudflare Workers/D1/KV/Cron Triggers）の実績づくり。**
 Docker/AWS/CI-CD/Rails/Goに続く技術スタック速習カリキュラムの一環。
@@ -11,8 +11,8 @@ Docker/AWS/CI-CD/Rails/Goに続く技術スタック速習カリキュラムの�
 |---|---|
 | Workers | 定期監視の実行（scheduled）とダッシュボード表示（fetch） |
 | D1 | 監視対象一覧（`targets`）とチェック履歴（`checks`）の正本 |
-| KV | 最新ステータスのスナップショット（ダッシュボード表示を高速化するキャッシュ。正本はD1） |
-| Cron Triggers | 5分ごとに `scheduled()` を起動 |
+| KV | 最新ステータスのスナップショット（ダッシュボード表示を高速化するキャッシュ。正本はD1）。**キーは `status:all` の1つだけ** |
+| Cron Triggers | 20分ごとに `scheduled()` を起動 |
 
 ## セットアップ
 
@@ -70,6 +70,7 @@ npx wrangler d1 execute cf-vps-monitor -c wrangler.local.jsonc --remote --comman
 
 ## 設計メモ
 
-- 通知は状態が**変化したときだけ**送る（5分おきに全件通知すると埋もれるため）
+- 通知は状態が**変化したときだけ**送る（毎回全件通知すると埋もれるため）
 - 履歴（`checks`）は30日より前の行を `scheduled()` 実行のたびに間引く（際限のない肥大化を防ぐ）
+- **KVへ書くキーは `status:all` の1つだけ。** 対象ごとに `status:<id>` を持つと書き込みが「対象数+1」回/実行になり、無料枠（書き込み1,000回/日）を使い切る。前回の判定値も `status:all` から引く
 - D1が正本、KVはダッシュボード表示用のキャッシュという役割分担（D1書き込みに失敗してもKVだけ古くなる形にはしていない。同じ`runChecks()`内で両方更新する）
