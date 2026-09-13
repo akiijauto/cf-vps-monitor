@@ -5,9 +5,11 @@
   "compatibility_date": "2026-08-22",
   "observability": { "enabled": true },
 
-  // 5分ごとにscheduled()を実行し、targetsテーブルの対象へ外形監視をかける。
+  // 20分ごとにscheduled()を実行し、targetsテーブルの対象へ外形監視をかける。
+  // 5分間隔だと1日288回。KV無料枠は書き込み1,000回/日なので、
+  // 実行あたり1回の書き込みでも余裕を持たせて20分（1日72回）にしている。
   "triggers": {
-    "crons": ["*/5 * * * *"]
+    "crons": ["*/20 * * * *"]
   },
 
   // wrangler d1 create cf-vps-monitor で発行されたIDに差し替える。
@@ -21,6 +23,7 @@
 
   // wrangler kv namespace create STATUS_KV で発行されたIDに差し替える。
   // 最新ステータスのスナップショット（ダッシュボード表示用のキャッシュ）を持つ。D1が正本、KVは高速表示用。
+  // キーは status:all の1つだけ。対象ごとのキーは作らない（KV書き込み上限対策）。
   "kv_namespaces": [
     {
       "binding": "STATUS_KV",

@@ -1,4 +1,5 @@
-import { env, SELF } from 'cloudflare:test';
+import { createExecutionContext, env, SELF, waitOnExecutionContext } from 'cloudflare:test';
+import worker from '../src/index';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('cf-vps-monitor', () => {
@@ -28,5 +29,23 @@ describe('cf-vps-monitor', () => {
   it('/api/history は target_id 必須', async () => {
     const res = await SELF.fetch('https://example.com/api/history');
     expect(res.status).toBe(400);
+  });
+
+  // 回帰防止: 対象ごとに status:<id> を書くとKV書き込みが「対象数+1」回/実行になり、
+  // 無料枠（書き込み1,000回/日）を使い切る。2026-09-12に上限90%の警告が実際に届いた。
+  it('KVへ書くキーは対象数によらず status:all の1つだけ', async () => {
+    await env.DB.exec(
+      "INSERT INTO targets (name, url, expected_status, timeout_ms) VALUES ('t1', 'https://t1.invalid/', 200, 1)"
+    );
+    await env.DB.exec(
+      "INSERT INTO targets (name, url, expected_status, timeout_ms) VALUES ('t2', 'https://t2.invalid/', 200, 1)"
+    );
+
+    const ctx = createExecutionContext();
+    await worker.scheduled({} as ScheduledEvent, env, ctx);
+    await waitOnExecutionContext(ctx);
+
+    const listed = await env.STATUS_KV.list();
+    expect(listed.keys.map((k) => k.name)).toEqual(['status:all']);
   });
 });
